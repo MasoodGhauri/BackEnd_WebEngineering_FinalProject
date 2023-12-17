@@ -1,13 +1,18 @@
 const express = require("express");
 const router = express.Router();
 
-const questionRouter = require('../Controllers/queryController/postQuestions'); //PostQuestions
-router.post('/api/questions', questionRouter);  
+const queryRouter = require('../Controllers/queryController'); //PostQuestions
+router.post('/api/questions', queryRouter.postQuestion);  
 
-const queryRouter = require('../Controllers/queryController/getAllQueries'); //getAllQueriesRouter
-router.get('/api/getAllQueries', queryRouter); 
+router.get('/api/getAllQueries', queryRouter.getAllQueries); 
 
-const searchAnswers = require('../Controllers/queryController/searchAnswer'); //PostQuestions
-router.post('/api/searchAnswer', searchAnswers); 
+router.post('/api/giveFeedback', queryRouter.giveFeedback); 
+
+router.post('/api/saveForLater', queryRouter.saveForLater);
+
+router.post('/api/searchAnswers', queryRouter.searchAnswer); 
+
+router.post('/api/selectQuery', queryRouter.selectQuery); 
+
 /**/
-modules.exports=router;
+module.exports=router;

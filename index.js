@@ -8,11 +8,11 @@ require("dotenv").config()
 
 
 
-mongoose.connect("mongodb+srv://i211226:webassignmentpass@cluster0.ditfwqw.mongodb.net/?retryWrites=true&w=majority", {useNewUrlParser: true , useUnifiedTopology: true})
+mongoose.connect("mongodb+srv://i211198:i211198@cluster0.sgdee5s.mongodb.net/AskPro?retryWrites=true&w=majority", {useNewUrlParser: true , useUnifiedTopology: true})
 .then(()=>console.log("Connected to DB"))
 .catch((err)=>console.log(err))
 
-
+    
 
 const queryRoutes = require("./Routes/queryRoutes")
 
