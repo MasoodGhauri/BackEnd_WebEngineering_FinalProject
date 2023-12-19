@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const userRouter = require("./Routes/Adnan/UserRoutes");
 
 const app = express();
 app.use(express.json());
@@ -27,6 +28,8 @@ mongoose
   .connect(process.env.MONGO_URL)
   .then(() => console.log("DB Connected"))
   .catch((err) => console.log(err));
+
+app.use("/", userRouter);
 
 app.listen(3001, () => {
   console.log("Server is running on port 3001");
