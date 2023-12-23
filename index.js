@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const mongoose = require("mongoose");
 const http = require("http");
 const app = express();
 const server = http.createServer(app);
@@ -35,35 +36,50 @@ mongoose
   .then(() => console.log("DB Connected"))
   .catch((err) => console.log(err));
 
-// used vaiables
-const users = {};
-const socketsList = {};
+const usersList = []; // to store all users connected including their names and ids
 
 io.on("connection", (socket) => {
-  socket.on("b-join room", (roomID) => {
-    if (users[roomID]) {
-      // Check if the current socket is not already in the room
-      if (!users[roomID].includes(socket.id)) {
-        users[roomID].push(socket.id);
+  socket.on("b-join room", ({ roomID, userName }) => {
+    let index = usersList.findIndex((user) => user.id === socket.id);
+    if (index === -1) {
+      // get all users in the room
+      const usersInRoom = io.sockets.adapter.rooms.get(roomID);
+      let users = [];
+      if (usersInRoom) {
+        // if there are any users present
+        usersInRoom.forEach((u) => {
+          // get the user object from the userList array using the id of the user in the usersInRoom array
+          const user = usersList.find((user) => user.id === u);
+          if (user) {
+            users.push(user);
+          }
+        });
+
+        socket.emit("f-users joined", users);
+      } else {
+        io.to(roomID).emit("f-users joined", users);
       }
-    } else {
-      users[roomID] = [socket.id];
+
+      let newUser = {
+        id: socket.id,
+        userName,
+        roomID,
+      };
+      usersList.push(newUser);
+      socket.join(roomID);
     }
-
-    socketsList[socket.id] = roomID;
-
-    const usersInThisRoom = users[roomID].filter((id) => id !== socket.id);
-
-    console.log(usersInThisRoom);
-    socket.emit("f-users joined", usersInThisRoom);
   });
 
-  socket.on("b-request connect", ({ userToConnect, from, signal }) => {
-    io.to(userToConnect).emit("f-get request", {
-      signal: signal,
-      from: from,
-    });
-  });
+  socket.on(
+    "b-request connect",
+    ({ userToConnect, from, signal, userName }) => {
+      io.to(userToConnect).emit("f-get request", {
+        signal: signal,
+        from: from,
+        userName,
+      });
+    }
+  );
 
   socket.on("b-accept connect", ({ from, signal }) => {
     io.to(from).emit("f-accepted connect", {
@@ -72,52 +88,23 @@ io.on("connection", (socket) => {
     });
   });
 
-  // disconnect not working properly
-  // socket.on("disconnect", () => {
-  //   const roomID = socketsList[socket.id];
-  //   let room = users[roomID];
-  //   if (room) {
-  //     room = room.filter((id) => id !== socket.id);
-  //     users[roomID] = room;
-  //   }
-  //   socket.broadcast.emit("user left", socket.id);
-  // });
+  socket.on("b-send message", ({ message, roomID, userName, time }) => {
+    io.to(roomID).emit("f-receive message", { message, userName, time });
+  });
 
-  // socket.on("disconnect", () => {
-  //   console.log("left : "+socket.id);
-  //   const roomID = socketsList[socket.id];
+  socket.on("b-send file", ({ roomID, body }) => {
+    io.to(roomID).emit("f-recieve file", body);
+  });
 
-  //   if (roomID) {
-  //     let room = users[roomID];
+  socket.on("disconnect", () => {
+    const userIdx = usersList.findIndex((user) => user.id === socket.id);
+    if (userIdx !== -1) {
+      socket.leave(usersList[userIdx].roomID);
+      usersList.splice(userIdx, 1);
 
-  //     if (room) {
-  //       // Filter out the disconnected socket ID from the room
-  //       room = room.filter((id) => id !== socket.id);
-  //       users[roomID] = room;
-
-  //       // Notify other users in the room about the disconnection
-  //       socket.broadcast.to(roomID).emit("user left", socket.id);
-  //     }
-  //   }
-  // });
-
-  // socket.on("disconnect", () => {
-  //   console.log("left: " + socket.id);
-  //   const roomID = socketsList[socket.id];
-
-  //   if (roomID) {
-  //     let room = users[roomID];
-
-  //     if (room) {
-  //       // Filter out the disconnected socket ID from the room
-  //       room = room.filter((id) => id !== socket.id);
-  //       users[roomID] = room;
-
-  //       // Notify other users in the room about the disconnection
-  //       io.to(roomID).emit("user left", socket.id);
-  //     }
-  //   }
-  // });
+      socket.broadcast.emit("user left", socket.id);
+    }
+  });
 });
 
 server.listen(3001, () => {
