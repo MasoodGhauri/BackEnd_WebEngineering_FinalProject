@@ -26,7 +26,8 @@ let AuthenticateUser = async(req , res , next) =>{
 
 let requireAdmin = async (req, res, next) =>
 {
-    if (req.user && req.user.role === 'admin') 
+  console.log(req.User)
+    if (req.User && req.User.role === 'admin') 
     {
       return next();
     }

@@ -13,6 +13,10 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
   },
+  isBlocked: {
+    type: Boolean,
+    default: false,
+  },
   level: {
     type: Number,
     default: 0,

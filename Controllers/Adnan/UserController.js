@@ -39,20 +39,26 @@ const Login = async (req, res) => {
   try {
     let users = await user.findOne({ email });
     if (users) {
-      if (users.password === password) {
-        let role = users.role;
-        let { password, ...rest } = users;
-        let id = users._id;
-        let token = await jwt.sign({ id, role }, process.env.SECRET_KEY, {
-          expiresIn: "10h",
-        });
-        res.json({ rest, Success: true, token });
-      } else {
-        res.json({ Success: false, Message: "Invalid password" });
+      if (users.isBlocked) 
+      {
+        res.json({ Success: false, Message: "User is blocked" });
+      } 
+      else{
+        if (users.password === password) {
+          let role = users.role;
+          let { password, ...rest } = users;
+          let id = users._id;
+          let token = await jwt.sign({ id, role }, process.env.SECRET_KEY, {
+            expiresIn: "10h",
+          });
+          res.json({ rest, Success: true, token });
+        } else {
+          res.json({ Success: false, Message: "Invalid password" });
+        }
+      } }
+      else {
+        res.json({ Success: false, Message: "User not found" });
       }
-    } else {
-      res.json({ Success: false, Message: "User not found" });
-    }
   } catch (err) {
     console.log(err);
     res.json({ Success: false, Message: "Error in finding user", err });
@@ -153,4 +159,95 @@ let UpdateUserPasswordbyID = async (req, res) => {
     res.status(500).json({ error: "Server Crashed" });
   }
 };
-module.exports = { Signup, Login, GetAllUsers, GetAllStudents, GetAllTeachers, GetUserProfilebyID, UpdateUserProfilebyID, UpdateUserPasswordbyID };
+
+let BlockUserByAdmin = async(req, res)=>
+{
+  let userId = req.params.userId;
+  try 
+  {
+    const users = await user.findById(userId);
+    if (!users) 
+    {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    users.isBlocked = true;
+    await users.save();
+
+    res.json({ message: 'User blocked successfully' });
+  } 
+  catch (error) 
+  {
+    console.error('Error in blocking user by admin:', error);
+    res.status(500).json({ error: 'Server Crashed' });
+  }
+}
+
+let UNBlockUserByAdmin = async(req, res)=>
+{
+  let userId = req.params.userId;
+  try 
+  {
+    const users = await user.findById(userId);
+    if (!users) 
+    {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    users.isBlocked = false;
+    await users.save();
+
+    res.json({ message: 'User Un Blocked successfully' });
+  } 
+  catch (error) 
+  {
+    console.error('Error in blocking user by admin:', error);
+    res.status(500).json({ error: 'Server Crashed' });
+  }
+}
+
+let UpdateTeacherLevel = async(req, res)=>
+{
+  let userId = req.params.userId;
+  try 
+  {
+    const users = await user.findById(userId);
+    if (!users) 
+    {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    console.log(users.level);
+    users.level = users.level + 1;
+    await users.save();
+
+    res.json({ message: 'Teacher level updated successfully' });
+  } 
+  catch (error) 
+  {
+    console.error('Error in updating teacher level by admin:', error);
+    res.status(500).json({ error: 'Server Crashed' });
+  }
+}
+
+let DeleteUserByAdmin = async(req, res)=>
+{
+  let userId = req.params.userId;
+  try 
+  {
+    const users = await user.findById(userId);
+    if (!users) 
+    {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    //users.remove is not a function, change it
+    await users.deleteOne()
+
+    res.json({ message: 'User deleted successfully' });
+  } 
+  catch (error) 
+  {
+    console.error('Error in deleting user by admin:', error);
+    res.status(500).json({ error: 'Server Crashed' });
+  }
+}
+
+module.exports = { Signup, Login, GetAllUsers, GetAllStudents, GetAllTeachers, GetUserProfilebyID, UpdateUserProfilebyID, UpdateUserPasswordbyID
+, BlockUserByAdmin, UNBlockUserByAdmin, UpdateTeacherLevel, DeleteUserByAdmin };
