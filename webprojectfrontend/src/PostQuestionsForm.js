@@ -2,13 +2,15 @@ import React, { useState } from "react";
 import { Form, Button, Card } from "react-bootstrap";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import "./PostQuestion.css";
+import "./Quillbar.css";
+// Assuming your backend URL
 const BackendURL = "http://localhost:3000";
 
 const PostQuestionForm = () => {
   const [id, setId] = useState("");
   const [name, setName] = useState("");
-  const [questionText, setQuestionText] = useState("");
+  //const [questionText, setQuestionText] = useState("");
+  const [quillHTML, setQuestionText] = useState("");
   const [files, setFiles] = useState(null);
 
   const handleFileChange = (e) => {
@@ -17,11 +19,14 @@ const PostQuestionForm = () => {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-
+    const doc = new DOMParser().parseFromString(quillHTML, "text/html");
+    const textWithoutTags = doc.body.textContent || "";
+    const questionText = textWithoutTags;
     const formData = new FormData();
     formData.append("id", id);
     formData.append("name", name);
     formData.append("questionText", questionText);
+    formData.append("questionJSX", quillHTML);
 
     if (files) {
       for (let i = 0; i < files.length; i++) {
@@ -30,15 +35,14 @@ const PostQuestionForm = () => {
     }
 
     try {
-      const response = await fetch(`${BackendURL}/new`, {
+      const response = await fetch(`${BackendURL}/api/query/new`, {
         method: "POST",
         body: formData,
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Files uploaded successfully:", data.savedQuery);
-        // Handle success, e.g., show a success message or redirect
+        console.log("Files uploaded successfully");
       } else {
         console.error("Error uploading files");
         // Handle error, e.g., show an error message
@@ -49,7 +53,7 @@ const PostQuestionForm = () => {
   };
 
   return (
-    <Card>
+    <Card style={{ maxWidth: "600px", margin: "auto", marginTop: "20px" }}>
       <Card.Body>
         <Form onSubmit={handleFormSubmit}>
           <Form.Group className="mb-3" controlId="formId">
@@ -70,23 +74,20 @@ const PostQuestionForm = () => {
             />
           </Form.Group>
 
-          <Form.Group className="mb-3" controlId="formQuestionText">
-            <Form.Label style={{ marginTop: "10%" }}>Question Text</Form.Label>
+          <Form.Group controlId="formQuestionText">
+            <Form.Label
+              style={{ fontWeight: "bold", marginTop: "20%", display: "block" }}
+            >
+              Write your question
+            </Form.Label>
             <ReactQuill
               theme="snow"
-              value={questionText}
+              value={quillHTML}
               onChange={setQuestionText}
-              style={{
-                height: "200px",
-                width: "60%",
-                marginBottom: "10px",
-                marginLeft: "20%",
-                marginTop: "10%",
-              }}
+              style={{ height: "200px", marginTop: "5%" }}
             />
           </Form.Group>
-
-          <Form.Group className="mb-3" controlId="formFileMultiple">
+          <Form.Group className="fileUpload" controlId="formFileMultiple">
             <Form.Label>Upload Files</Form.Label>
             <Form.Control type="file" multiple onChange={handleFileChange} />
           </Form.Group>

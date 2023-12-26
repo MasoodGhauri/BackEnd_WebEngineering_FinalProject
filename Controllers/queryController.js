@@ -5,6 +5,7 @@ const {
 } = require("firebase/storage");
 const { storage } = require("../firebase");
 const { Query } = require("../models/QueryPosting");
+const { all } = require("../Routes/queryRoutes");
 
 const postQuestion = async (req, res) => {
   const { id, name, catagory, questionText, questionJSX } = req.body;
@@ -21,40 +22,45 @@ const postQuestion = async (req, res) => {
     };
 
     let filesUpload = [];
+    if (files) {
+      const filesArray = Array.isArray(files) ? files : [files];
 
-    const filesArray = Array.isArray(files) ? files : [files];
+      // Using Promise.all to wait for all uploads to complete
+      await Promise.all(
+        filesArray.map(async (file) => {
+          let metadata = {
+            contentType: file.mimetype,
+          };
+          const storageRef = ref(
+            storage,
+            "queryFiles/" + Date.now() + file.name
+          );
+          const uploadTask = uploadBytesResumable(
+            storageRef,
+            file.data,
+            metadata
+          );
 
-    // Using Promise.all to wait for all uploads to complete
-    await Promise.all(
-      filesArray.map(async (file) => {
-        let metadata = {
-          contentType: file.mimetype,
-        };
-        const storageRef = ref(storage, "queryFiles/" + Date.now() + file.name);
-        const uploadTask = uploadBytesResumable(
-          storageRef,
-          file.data,
-          metadata
-        );
-
-        // Wrap the event listener in a Promise to await completion
-        await new Promise((resolve, reject) => {
-          uploadTask.on("state_changed", null, reject, async () => {
-            try {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              filesUpload.push({
-                fileName: file.name,
-                pathName: downloadURL,
-              });
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
+          // Wrap the event listener in a Promise to await completion
+          await new Promise((resolve, reject) => {
+            uploadTask.on("state_changed", null, reject, async () => {
+              try {
+                const downloadURL = await getDownloadURL(
+                  uploadTask.snapshot.ref
+                );
+                filesUpload.push({
+                  fileName: file.name,
+                  pathName: downloadURL,
+                });
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
+            });
           });
-        });
-      })
-    );
-
+        })
+      );
+    }
     const newQuery = new Query({
       queryPoster,
       questionText,
@@ -177,6 +183,33 @@ const getQuery = async (req, res) => {
     res.status(200).send({ Success: true, Query: foundQuery._doc });
   } catch (error) {
     res.status(404).send({ Success: false, Message: "Query not found" });
+  }
+};
+
+//teacher ID
+const getExpertQuery = async (req, res) => {
+  let teacherId = req.params.id;
+
+  try {
+    // Find queries where isTaken is true and takenBy.id matches the teacherId
+    let foundQueries = await Query.find({
+      "isTaken.taken": true,
+      "isTaken.takenBy.id": teacherId,
+    });
+
+    res.status(200).send({ Success: true, Queries: foundQueries });
+  } catch (error) {
+    res.status(404).send({ Success: false, Message: "Queries not found" });
+  }
+};
+
+//Get all queries (Can be used to display queries to teacher for selection)
+const getAllQueries = async (req, res) => {
+  try {
+    let allQueries = await Query.find({ "isTaken.taken": false });
+    res.status(200).send({ Success: true, Queries: allQueries });
+  } catch (error) {
+    res.status(500).send({ Success: false, Message: "Internal Server Error" });
   }
 };
 
@@ -428,6 +461,7 @@ module.exports = {
   updateQuery,
   deleteQuery,
   getQuery,
+  getAllQueries,
   addComment,
   addFeedback,
   selectQuery,

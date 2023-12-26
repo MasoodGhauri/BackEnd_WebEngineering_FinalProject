@@ -37,4 +37,45 @@ router.get("/new", (req, res) => {
     });
 });
 
+// get meeting auth
+router.get("/check/:code", (req, res) => {
+  let { code } = req.params;
+
+  Meeting.findOne({ code })
+    .then((meeting) => {
+      if (meeting) {
+        const oneDayInMilliseconds = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+        const currentTime = new Date();
+        const meetingTime = new Date(meeting._doc.createdAt);
+
+        if (currentTime - meetingTime < oneDayInMilliseconds) {
+          res.status(200).send({
+            Success: true,
+            Message: "Meeting found",
+          });
+        } else {
+          Meeting.deleteOne({ code: roomID })
+            .then(() => console.log("Meeting deleted"))
+            .catch((err) => console.log(err));
+          res.status(200).send({
+            Success: false,
+            Message: "Meeting expired",
+          });
+        }
+      } else {
+        res.status(404).send({
+          Success: false,
+          Message: "Meeting not found",
+        });
+      }
+    })
+    .catch((err) => {
+      res.status(500).send({
+        Success: false,
+        Message: "Internal Server Error",
+        Error: err,
+      });
+    });
+});
+
 module.exports = router;
