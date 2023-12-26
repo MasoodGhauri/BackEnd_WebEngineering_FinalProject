@@ -1,37 +1,119 @@
-const mongoose = require('mongoose');
+/*
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const ObjectId = Schema.Types.ObjectId;
 
-const QuerySchema = new Schema({
-    studentId: {
-        type: ObjectId,
-        ref: 'Student',
-        required: true
+const QuerySchema = new Schema(
+  {
+    queryPoster: {
+      id: String,
+      name: String,
     },
-    questionText: {
-        type: String,
-        required: true
-    },
-    imageUpload: {
-        type: String,
-        trim: true
-    },
-    datePosted: {
-        type: Date,
-        default: Date.now
-    },
+    questionText: String,
+    filesUpload: [
+      {
+        fileName: String,
+        pathName: String,
+      },
+    ],
     isAnswered: {
+      answered: {
         type: Boolean,
-        default: false
+        default: false,
+      },
+      answeredBy: {
+        id: String,
+        name: String,
+      },
     },
-    answerId: {
-        type: ObjectId,
-        ref: 'Answer'
-    }
-});
+    isTaken: {
+      taken: {
+        type: Boolean,
+        default: false,
+      },
+      takenBy: {
+        id: String,
+        name: String,
+      },
+    },
+  },
+  { timestamps: true }
+);
 
+const Query = mongoose.model("Query", QuerySchema);
 
-const Query = mongoose.model('Query', QuerySchema);
+module.exports = { Query };
+*/
+const mongoose = require("mongoose");
+const Schema = mongoose.Schema;
 
+const QuerySchema = new Schema(
+  {
+    // for student
+    catagory: String,
+    queryPoster: {
+      id: String,
+      name: String,
+    },
+    questionText: String,
+    questionJSX: String,
+    filesUpload: [
+      {
+        fileName: String,
+        pathName: String,
+      },
+    ],
+    isAnswered: {
+      answered: {
+        type: Boolean,
+        default: false,
+      },
+      answeredBy: {
+        id: String,
+        name: String,
+      },
+    },
+    isTaken: {
+      taken: {
+        type: Boolean,
+        default: false,
+      },
+      takenBy: {
+        id: String,
+        name: String,
+      },
+    },
+    // for expert
+    isSolved: {
+      type: Boolean,
+      default: false,
+    },
+    querySolver: {
+      id: String,
+      name: String,
+    },
+    answerText: String,
+    answerJSX: String,
+    answerFiles: [
+      {
+        fileName: String,
+        pathName: String,
+      },
+    ],
+    answerFeedback: {
+      type: Number,
+      default: -1,
+    },
+    comments: [
+      {
+        flag: Boolean,
+        comment: String,
+      },
+    ],
+  },
+  { timestamps: true }
+);
 
-module.exports = {Query};
+const Query = mongoose.model("Query", QuerySchema);
+
+module.exports = { Query };

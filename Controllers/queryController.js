@@ -1,181 +1,436 @@
-const { Query } =require("../models/QueryPosting")
-const express = require('express');
-const router = express.Router();
-const multer = require('multer');
-//const { Query } = require('../models/query');
-//const { Answer } = require('../models/answer');
+const {
+  ref,
+  getDownloadURL,
+  uploadBytesResumable,
+} = require("firebase/storage");
+const { storage } = require("../firebase");
+const { Query } = require("../models/QueryPosting");
 
+const postQuestion = async (req, res) => {
+  const { id, name, catagory, questionText, questionJSX } = req.body;
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
-
-//const postQuestion=upload.single('imageUpload');
- //router.post("/postQuestions", postQuestion, async (req, res) => {
- const postQuestion =  async (req, res) => {
-    try {                                                   
-        const { studentId, questionText } = req.body;                           // Route to allow students to post questions
-        let imageUpload = '';
-
-        if (req.file) {
-            console.log("Hello");
-            imageUpload = req.file.buffer.toString('base64');
-        }
-
-        const newQuery = new Query({
-            studentId,
-            questionText,
-            imageUpload
-        });
-
-        const savedQuery = await newQuery.save();
-        res.status(201).json(savedQuery);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }   
-};
-
-const getAllQueries =  async (req, res) => {          // Route to retrieve all queries
-    try {
-        const queries = await Query.find().populate('studentId').exec();
-        res.status(200).json(queries);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
+  try {
+    let files;
+    if (req.files) {
+      files = req.files.files;
     }
-};
-//Answer schema ||
-//              \/
+    // console.log(req.files.files);
+    let queryPoster = {
+      id,
+      name,
+    };
 
-const searchAnswer = async (req, res) => {
-    try {
-        const { questionText } = req.body;
-        const answer = await Answer.findOne({ questionText }).exec();        // Check if the answer is present in the Answer bank
+    let filesUpload = [];
 
-        if (answer) {
-            const query = await Query.findOne({ questionText, isAnswered: false }).exec();            // If an answer is found, mark the corresponding query as answered
+    const filesArray = Array.isArray(files) ? files : [files];
 
-            if (query) {
-                query.isAnswered = true;
-                query.answerId = answer._id;
-                await query.save();
+    // Using Promise.all to wait for all uploads to complete
+    await Promise.all(
+      filesArray.map(async (file) => {
+        let metadata = {
+          contentType: file.mimetype,
+        };
+        const storageRef = ref(storage, "queryFiles/" + Date.now() + file.name);
+        const uploadTask = uploadBytesResumable(
+          storageRef,
+          file.data,
+          metadata
+        );
+
+        // Wrap the event listener in a Promise to await completion
+        await new Promise((resolve, reject) => {
+          uploadTask.on("state_changed", null, reject, async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              filesUpload.push({
+                fileName: file.name,
+                pathName: downloadURL,
+              });
+              resolve();
+            } catch (error) {
+              reject(error);
             }
+          });
+        });
+      })
+    );
 
-            res.status(200).json({ answer: answer.answerText });
-        } else {
-            res.status(404).json({ error: 'Answer not found' });
-        }
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
+    const newQuery = new Query({
+      queryPoster,
+      questionText,
+      questionJSX,
+      filesUpload,
+      catagory,
+    });
+
+    const savedQuery = await newQuery.save();
+    res.status(200).json({
+      Success: true,
+      Message: "Query posted successfully",
+      Query: savedQuery,
+    });
+  } catch (err) {
+    // console.error("Error uploading files:", err);
+    res.status(500).json({ Success: false, Message: "Internal Server Error" });
+  }
 };
-//Other schema  ||
-//              \/
+
+const updateQuery = async (req, res) => {
+  let { id, ...rest } = req.body;
+
+  let files;
+  if (req.files) {
+    files = req.files.files;
+  }
+
+  let filesUpload = [];
+
+  try {
+    // Upload new files if provided
+    if (files) {
+      const filesArray = Array.isArray(files) ? files : [files];
+
+      // Using Promise.all to wait for all uploads to complete
+      await Promise.all(
+        filesArray.map(async (file) => {
+          let metadata = {
+            contentType: file.mimetype,
+          };
+          const storageRef = ref(
+            storage,
+            "queryFiles/" + Date.now() + file.name
+          );
+          const uploadTask = uploadBytesResumable(
+            storageRef,
+            file.data,
+            metadata
+          );
+
+          // Wrap the event listener in a Promise to await completion
+          await new Promise((resolve, reject) => {
+            uploadTask.on("state_changed", null, reject, async () => {
+              try {
+                const downloadURL = await getDownloadURL(
+                  uploadTask.snapshot.ref
+                );
+                filesUpload.push({
+                  fileName: file.name,
+                  pathName: downloadURL,
+                });
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
+            });
+          });
+        })
+      );
+    }
+
+    // Update the rest of the fields and filesUpload
+    const updatedQuery = await Query.findByIdAndUpdate(
+      id,
+      {
+        ...rest,
+        $addToSet: { filesUpload: { $each: filesUpload } },
+      },
+      { new: true }
+    );
+
+    if (!updatedQuery) {
+      return res
+        .status(404)
+        .send({ Success: false, Message: "Query not found" });
+    }
+
+    res.status(200).send({
+      Success: true,
+      Message: "Query Updated",
+      Query: updatedQuery._doc,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .send({ Success: false, Message: "Error updating query", Error: error });
+  }
+};
+
+const deleteQuery = async (req, res) => {
+  let toFind = req.params.id;
+  try {
+    let deletedQuery = await Query.findByIdAndDelete(toFind);
+    res.status(200).send({
+      Success: true,
+      Message: "Query deleted successfully",
+      DeletedQery: deletedQuery._doc,
+    });
+  } catch (error) {
+    res.status(404).send({ Success: false, Message: "Query not found" });
+  }
+};
+
+// get query by id
+const getQuery = async (req, res) => {
+  let toFind = req.params.id;
+  try {
+    let foundQuery = await Query.findOne({ _id: toFind });
+    res.status(200).send({ Success: true, Query: foundQuery._doc });
+  } catch (error) {
+    res.status(404).send({ Success: false, Message: "Query not found" });
+  }
+};
+
+// for discussion
+const addComment = async (req, res) => {
+  let { queryId, flag, comment } = req.body;
+  try {
+    const foundQuery = await Query.findByIdAndUpdate(
+      queryId,
+      { $push: { comments: { flag, comment } } },
+      { new: true }
+    );
+
+    res.status(200).send({
+      Success: true,
+      Message: "Comment added",
+      Comment: comment,
+    });
+  } catch (error) {
+    res.status(404).send({ Success: false, Message: "Error adding comment" });
+  }
+};
+
+const addFeedback = async (req, res) => {
+  // answer is removed if feedback stars are less than 3
+  let { queryId, stars } = req.body;
+
+  try {
+    const updatedQuery = await Query.findByIdAndUpdate(
+      queryId,
+      { answerFeedback: stars },
+      { new: true }
+    );
+
+    if (!updatedQuery) {
+      return res
+        .status(404)
+        .send({ Success: false, Message: "Query not found" });
+    }
+
+    if (stars < 3) {
+      // If stars are less than 3, remove answerText, answerJSX, set taken to false, and remove takenBy
+      updatedQuery.answerText = "";
+      updatedQuery.answerJSX = "";
+      updatedQuery.isTaken = {
+        taken: false,
+        takenBy: {
+          id: "",
+          name: "",
+        },
+      };
+    }
+
+    res.status(200).send({
+      Success: true,
+      Message: "Feedback added",
+      Feedback: updatedQuery.answerFeedback,
+    });
+  } catch (error) {
+    res.status(500).send({ Success: false, Message: "Error adding Feedback" });
+  }
+};
 
 const selectQuery = async (req, res) => {
-    try {
-        const { expertId, queryId } = req.body;
+  let { id, takenByExpert } = req.body; // takenBy is a object
 
-        // Check if the expert exists
-        const expert = await Expert.findById(expertId).exec();
-        if (!expert) {
-            return res.status(404).json({ error: 'Expert not found' });
-        }
+  try {
+    const updatedQuery = await Query.findByIdAndUpdate(
+      id,
+      {
+        isTaken: {
+          taken: true,
+          takenBy: {
+            id: takenByExpert.id,
+            name: takenByExpert.name,
+          },
+        },
+      },
+      { new: true }
+    );
 
-        // Check if the query exists and is not already answered
-        const query = await Query.findOne({ _id: queryId, isAnswered: false }).exec();
-        if (!query) {
-            return res.status(404).json({ error: 'Query not found or already answered' });
-        }
-
-        // Update the query to mark it as answered and assign it to the expert
-        query.isAnswered = true;
-        query.answerId = new Answer(); // Assuming Answer model has a default constructor
-        await query.save();
-
-        res.status(200).json({ message: 'Query selected for answering' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
+    if (!updatedQuery) {
+      return res
+        .status(404)
+        .send({ Success: false, Message: "Query not found" });
     }
+
+    res.status(200).send({
+      Success: true,
+      Message: "Query selected successfully",
+      Query: updatedQuery._doc,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .send({ Success: false, Message: "Error selecting query", Error: error });
+  }
 };
+const answerQuery = async (req, res) => {
+  let { id, answeredBy, answerText, answerJSX } = req.body;
+  const files = req.files.files;
 
-// Route for an expert to save a query for answering later
-const saveForLater = async (req, res) => {
-    try {
-        const { expertId, queryId } = req.body;
+  let filesUpload = [];
 
-        // Check if the expert exists
-        const expert = await Expert.findById(expertId).exec();
-        if (!expert) {
-            return res.status(404).json({ error: 'Expert not found' });
-        }
+  const filesArray = Array.isArray(files) ? files : [files];
 
-        // Check if the query exists and is not already answered
-        const query = await Query.findOne({ _id: queryId, isAnswered: false }).exec();
-        if (!query) {
-            return res.status(404).json({ error: 'Query not found or already answered' });
-        }
+  // Using Promise.all to wait for all uploads to complete
+  await Promise.all(
+    filesArray.map(async (file) => {
+      let metadata = {
+        contentType: file.mimetype,
+      };
+      const storageRef = ref(storage, "queryFiles/" + Date.now() + file.name);
+      const uploadTask = uploadBytesResumable(storageRef, file.data, metadata);
 
-        // Save the query for later answering by the expert
-        expert.queriesToAnswer.push(queryId);
-        await expert.save();
-
-        res.status(200).json({ message: 'Query saved for later answering' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-};
-const giveFeedback = async (req, res) => {
-    try {
-        const { queryId, studentId, feedbackText, rating } = req.body;
-
-        // Check if the query exists and is answered
-        const query = await Query.findOne({ _id: queryId, isAnswered: true }).exec();
-        if (!query) {
-            return res.status(404).json({ error: 'Query not found or not answered yet' });
-        }
-
-        // Save the feedback
-        const newFeedback = new Feedback({
-            queryId,
-            studentId,
-            feedbackText,
-            rating
+      // Wrap the event listener in a Promise to await completion
+      await new Promise((resolve, reject) => {
+        uploadTask.on("state_changed", null, reject, async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            filesUpload.push({
+              fileName: file.name,
+              pathName: downloadURL,
+            });
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
+      });
+    })
+  );
 
-        const savedFeedback = await newFeedback.save();
+  try {
+    const answeredQuery = await Query.findByIdAndUpdate(
+      id,
+      {
+        answerText: answerText,
+        answerJSX: answerJSX,
+        answerFiles: filesUpload,
+        querySolver: {
+          id: answeredBy.id,
+          name: answeredBy.name,
+        },
+      },
+      { new: true }
+    );
 
-        // Update points for the expert based on the feedback rating
-        const expert = await Expert.findById(query.expertId).exec();
-        if (expert) {
-            const pointChange = rating > 3 ? 1 : rating < 3 ? -1 : 0;
-
-            // Update points for the expert
-            let expertPoints = await Point.findOne({ expertId: expert._id }).exec();
-
-            if (!expertPoints) {
-                expertPoints = new Point({
-                    expertId: expert._id,
-                    points: pointChange
-                });
-            } else {
-                expertPoints.points += pointChange;
-            }
-
-            await expertPoints.save();
-        }
-
-        res.status(200).json({ message: 'Feedback submitted successfully' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
+    if (!answeredQuery) {
+      return res
+        .status(404)
+        .send({ Success: false, Message: "Query not found" });
     }
+
+    res.status(200).send({
+      Success: true,
+      Message: "Answer saved successfully",
+      Query: answeredQuery._doc,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .send({ Success: false, Message: "Error saving answer", Error: error });
+  }
 };
 
+const updateAnswer = async (req, res) => {
+  let { id, updatedAnswerText, updatedAnswerJSX } = req.body;
+  let files;
+  if (req.files) {
+    files = req.files.files;
+  }
 
-module.exports={
-postQuestion,getAllQueries,searchAnswer,selectQuery,saveForLater,giveFeedback
+  let filesUpload = [];
+
+  try {
+    // Upload new files if provided
+    if (files) {
+      const filesArray = Array.isArray(files) ? files : [files];
+
+      // Using Promise.all to wait for all uploads to complete
+      await Promise.all(
+        filesArray.map(async (file) => {
+          let metadata = {
+            contentType: file.mimetype,
+          };
+          const storageRef = ref(
+            storage,
+            "queryFiles/" + Date.now() + file.name
+          );
+          const uploadTask = uploadBytesResumable(
+            storageRef,
+            file.data,
+            metadata
+          );
+
+          // Wrap the event listener in a Promise to await completion
+          await new Promise((resolve, reject) => {
+            uploadTask.on("state_changed", null, reject, async () => {
+              try {
+                const downloadURL = await getDownloadURL(
+                  uploadTask.snapshot.ref
+                );
+                filesUpload.push({
+                  fileName: file.name,
+                  pathName: downloadURL,
+                });
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
+            });
+          });
+        })
+      );
+    }
+
+    // Update answerText, answerJSX, and answerFiles
+    const updatedQuery = await Query.findByIdAndUpdate(
+      id,
+      {
+        answerText: updatedAnswerText,
+        answerJSX: updatedAnswerJSX,
+        $addToSet: { answerFiles: { $each: filesUpload } },
+      },
+      { new: true }
+    );
+
+    if (!updatedQuery) {
+      return res
+        .status(404)
+        .send({ Success: false, Message: "Query not found" });
+    }
+
+    res.status(200).send({
+      Success: true,
+      Message: "Answer updated successfully",
+      Query: updatedQuery._doc,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .send({ Success: false, Message: "Error updating answer", Error: error });
+  }
+};
+
+module.exports = {
+  postQuestion,
+  updateQuery,
+  deleteQuery,
+  getQuery,
+  addComment,
+  addFeedback,
+  selectQuery,
+  answerQuery,
+  updateAnswer,
 };

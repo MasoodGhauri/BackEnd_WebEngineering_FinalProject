@@ -1,0 +1,41 @@
+.Form.Group {
+  margin-bottom: 1.5rem; /* Adjust as needed */
+}
+
+/* Styling for Form.Label */
+.Form.Label {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* Styling for ReactQuill */
+.ReactQuill {
+}
+
+/* Optional: Styling for ReactQuill toolbar */
+.ReactQuill .ql-toolbar {
+  border-bottom: 1px solid #ccc;
+  background-color: #f8f9fa;
+  padding: 8px;
+  margin-left: 10%;
+  margin-right: 10%;
+}
+
+/* Optional: Styling for ReactQuill editor area */
+.ReactQuill .ql-editor {
+  min-height: 150px; /* Adjust as needed */
+  border: 1px solid #ccc;
+  border-top: none;
+  padding: 10px;
+}
+
+/* Optional: Styling for ReactQuill editor content */
+.ReactQuill .ql-editor p {
+  margin: 0;
+}
+
+/* Optional: Styling for ReactQuill editor placeholder */
+.ReactQuill .ql-editor .ql-placeholder {
+  color: #888;
+}

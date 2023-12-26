@@ -6,27 +6,23 @@ const DiscussionSchema = new Schema({
     queryId: {
         type: ObjectId,
         ref: 'Query',
-        required: true
+        //required: true
     },
     studentId: {
         type: ObjectId,
         ref: 'Student',
-        required: true
+        //required: true
     },
     expertId: {
         type: ObjectId,
         ref: 'Expert',
-        required: true
+        //required: true
     },
     commentText: {
         type: String,
-        required: true
-    },
-    datePosted: {
-        type: Date,
-        default: Date.now
+       // required: true
     }
-});
+},{timestamps:true});
 
 const Discussion = mongoose.model('Discussion', DiscussionSchema);
 

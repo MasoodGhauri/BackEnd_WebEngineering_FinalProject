@@ -6,22 +6,22 @@ const AnswerFeedbackSchema = new Schema({
     queryId: {
         type: ObjectId,
         ref: 'Query',
-        required: true
+        //required: true
     },
     studentId: {
         type: ObjectId,
         ref: 'Student',
-        required: true
+       // required: true
     },
     feedbackText: {
         type: String,
-        required: true
+     //   required: true
     },
     points: {
         type: Number,
-        required: true
+       // required: true
     }
-});
+},{timestamps:true});
 
 
 

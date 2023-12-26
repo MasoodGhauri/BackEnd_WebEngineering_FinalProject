@@ -6,22 +6,18 @@ const AnsweringQuerySchema = new Schema({
     expertId: {
         type: ObjectId,
         ref: 'Expert',
-        required: true
+      //  required: true
     },
     queryId: {
         type: ObjectId,
         ref: 'Query',
-        required: true
+    //    required: true
     },
     answerText: {
         type: String,
-        required: true
-    },
-    dateAnswered: {
-        type: Date,
-        default: Date.now
+       // required: true
     }
-});
+},{timestamps:true});
 
 
 const AnsweringQuery = mongoose.model('AnsweringQuery', AnsweringQuerySchema);
